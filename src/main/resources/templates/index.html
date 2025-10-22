@@ -122,7 +122,7 @@
             data: {
                 labels: labels,
                 datasets: [{
-                    label: '匯率 - ' + currency, // Update label to include currency
+                    label: '匯率 - ' + currency,
                     data: data,
                     borderColor: 'rgb(75, 192, 192)',
                     backgroundColor: 'rgba(75, 192, 192, 0.2)',
@@ -155,7 +155,7 @@
                 }
             }
         });
-        document.querySelector('.card-header h5 span').textContent = currency; // Update currency in header
+        document.querySelector('.card-header h5 span').textContent = currency;
     }
 
     function updateTable(rates) {
@@ -167,7 +167,7 @@
                 const row = tableBody.insertRow();
                 row.insertCell().textContent = rate.date;
                 row.insertCell().textContent = rate.currency;
-                row.insertCell().textContent = rate.rate.toFixed(4); // Assuming rate is a number
+                row.insertCell().textContent = rate.rate.toFixed(4);
             });
         } else {
             const row = tableBody.insertRow();
@@ -178,7 +178,7 @@
         }
     }
 
-    // Initial load
+    // Initial
     const initialRates = /*[[${rates}]]*/ [];
     const initialSelectedCurrency = /*[[${selectedCurrency}]]*/ 'USD'; // Default if not set
     if (initialRates && initialRates.length > 0) {
@@ -187,11 +187,10 @@
         updateChart(initialLabels, initialData, initialSelectedCurrency);
         updateTable(initialRates); // Call updateTable for initial data
     } else {
-        updateTable([]); // Show "查無資料" if no initial rates
+        updateTable([]); // 查無資料
     }
 
 
-    // Event listener for the new button
     document.addEventListener('DOMContentLoaded', function() {
         const fetchLatest7RatesBtn = document.getElementById('fetchLatest7RatesBtn');
         if (fetchLatest7RatesBtn) {
@@ -205,11 +204,10 @@
                         return response.json();
                     })
                     .then(data => {
-                        // Data from API is already sorted by date desc, so reverse for chart
                         const labels = data.map(r => r.date).reverse();
                         const ratesData = data.map(r => r.rate).reverse();
                         updateChart(labels, ratesData, selectedCurrency);
-                        updateTable(data); // Update table with new data
+                        updateTable(data);
                     })
                     .catch(error => {
                         console.error('Error fetching latest 7 rates:', error);
@@ -222,7 +220,7 @@
         const updateRateForm = document.getElementById('updateRateForm');
         if (updateRateForm) {
             updateRateForm.addEventListener('submit', function(event) {
-                event.preventDefault(); // Prevent default form submission
+                event.preventDefault();
 
                 const currency = document.getElementById('updateCurrency').value.toUpperCase();
                 const rate = document.getElementById('updateRate').value;
