@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>匯率追蹤系統</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="container mt-5">
+    <h1 class="mb-4">🌍 匯率追蹤系統</h1>
+
+    <!-- 查詢表單 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" action="/" class="row g-3">
+                <div class="col-md-4">
+                    <label for="currency" class="form-label">選擇幣別</label>
+                    <select class="form-select" id="currency" name="currency">
+                        <option th:each="curr : ${currencies}"
+                                th:value="${curr}"
+                                th:text="${curr}"
+                                th:selected="${curr == selectedCurrency}"></option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="days" class="form-label">查詢天數</label>
+                    <select class="form-select" id="days" name="days">
+                        <option value="7" th:selected="${selectedDays == 7}">最近 7 天</option>
+                        <option value="14" th:selected="${selectedDays == 14}">最近 14 天</option>
+                        <option value="30" th:selected="${selectedDays == 30}">最近 30 天</option>
+                        <option value="60" th:selected="${selectedDays == 60}">最近 60 天</option>
+                        <option value="90" th:selected="${selectedDays == 90}">最近 90 天</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">查詢</button>
+                    <button type="button" id="fetchLatest7RatesBtn" class="btn btn-info">最近7筆</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 手動更新表單 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">手動更新匯率</h5>
+        </div>
+        <div class="card-body">
+            <form id="updateRateForm" class="row g-3">
+                <div class="col-md-3">
+                    <label for="updateCurrency" class="form-label">幣別 (例如: USD)</label>
+                    <input type="text" class="form-control" id="updateCurrency" required>
+                </div>
+                <div class="col-md-3">
+                    <label for="updateRate" class="form-label">匯率</label>
+                    <input type="number" step="0.0001" class="form-control" id="updateRate" required>
+                </div>
+                <div class="col-md-3">
+                    <label for="updateDate" class="form-label">日期</label>
+                    <input type="date" class="form-control" id="updateDate" required>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-success w-100">更新匯率</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 圖表區域 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">匯率走勢圖 - <span th:text="${selectedCurrency}"></span></h5>
+        </div>
+        <div class="card-body">
+            <canvas id="rateChart" style="max-height: 400px;"></canvas>
+        </div>
+    </div>
+
+    <!-- 資料表格 -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">匯率明細</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>幣別</th>
+                        <th>匯率</th>
+                    </tr>
+                    </thead>
+                    <tbody id="ratesTableBody">
+                    <tr th:each="rate : ${rates}">
+                        <td th:text="${rate.date}"></td>
+                        <td th:text="${rate.currency}"></td>
+                        <td th:text="${#numbers.formatDecimal(rate.rate, 1, 4)}"></td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(rates)}">
+                        <td colspan="3" class="text-center text-muted">查無資料</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    let myChart;
+
+    function updateChart(labels, data, currency) {
+        const ctx = document.getElementById('rateChart').getContext('2d');
+        if (myChart) {
+            myChart.destroy(); // Destroy existing chart instance
+        }
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '匯率 - ' + currency, // Update label to include currency
+                    data: data,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    tension: 0.1,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(4);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        document.querySelector('.card-header h5 span').textContent = currency; // Update currency in header
+    }
+
+    function updateTable(rates) {
+        const tableBody = document.getElementById('ratesTableBody');
+        tableBody.innerHTML = ''; // Clear existing rows
+
+        if (rates && rates.length > 0) {
+            rates.forEach(rate => {
+                const row = tableBody.insertRow();
+                row.insertCell().textContent = rate.date;
+                row.insertCell().textContent = rate.currency;
+                row.insertCell().textContent = rate.rate.toFixed(4); // Assuming rate is a number
+            });
+        } else {
+            const row = tableBody.insertRow();
+            const cell = row.insertCell();
+            cell.colSpan = 3;
+            cell.className = 'text-center text-muted';
+            cell.textContent = '查無資料';
+        }
+    }
+
+    // Initial load
+    const initialRates = /*[[${rates}]]*/ [];
+    const initialSelectedCurrency = /*[[${selectedCurrency}]]*/ 'USD'; // Default if not set
+    if (initialRates && initialRates.length > 0) {
+        const initialLabels = initialRates.map(r => r.date).reverse();
+        const initialData = initialRates.map(r => r.rate).reverse();
+        updateChart(initialLabels, initialData, initialSelectedCurrency);
+        updateTable(initialRates); // Call updateTable for initial data
+    } else {
+        updateTable([]); // Show "查無資料" if no initial rates
+    }
+
+
+    // Event listener for the new button
+    document.addEventListener('DOMContentLoaded', function() {
+        const fetchLatest7RatesBtn = document.getElementById('fetchLatest7RatesBtn');
+        if (fetchLatest7RatesBtn) {
+            fetchLatest7RatesBtn.addEventListener('click', function() {
+                const selectedCurrency = document.getElementById('currency').value;
+                fetch(`/api/rates/${selectedCurrency}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok ' + response.statusText);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Data from API is already sorted by date desc, so reverse for chart
+                        const labels = data.map(r => r.date).reverse();
+                        const ratesData = data.map(r => r.rate).reverse();
+                        updateChart(labels, ratesData, selectedCurrency);
+                        updateTable(data); // Update table with new data
+                    })
+                    .catch(error => {
+                        console.error('Error fetching latest 7 rates:', error);
+                        alert('查詢最近7筆匯率資料失敗: ' + error.message);
+                    });
+            });
+        }
+
+        //  manual update form
+        const updateRateForm = document.getElementById('updateRateForm');
+        if (updateRateForm) {
+            updateRateForm.addEventListener('submit', function(event) {
+                event.preventDefault(); // Prevent default form submission
+
+                const currency = document.getElementById('updateCurrency').value.toUpperCase();
+                const rate = document.getElementById('updateRate').value;
+                const date = document.getElementById('updateDate').value;
+
+                if (!currency || !rate || !date) {
+                    alert('請填寫所有欄位！');
+                    return;
+                }
+
+                const requestBody = {
+                    currency: currency,
+                    rate: rate,
+                    date: date
+                };
+
+                fetch('/api/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('更新失敗，請檢查您的輸入或網路連線。');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    alert(`成功更新匯率: ${data.currency} 在 ${data.date} 的匯率為 ${data.rate}`);
+                    updateRateForm.reset(); // Clear the form
+                })
+                .catch(error => {
+                    console.error('Error updating rate:', error);
+                    alert(error.message);
+                });
+            });
+        }
+    });
+    /*]]>*/
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
